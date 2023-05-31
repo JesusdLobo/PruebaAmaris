@@ -1,0 +1,166 @@
+﻿ 
+@using MudBlazor
+@using OfficeOpenXml
+@using System.IO
+@using System.Globalization;
+@inject NavigationManager NavigationManager
+@using CurrieTechnologies.Razor.SweetAlert2
+
+@inject SweetAlertService Swal;
+
+
+<MudDialog  >
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <b>Cargar Documento</b>
+
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+
+
+        <br />
+     
+        <InputFile OnChange="HandleFileSelected" />
+
+        @if (orders != null && orders.Any())
+        {
+            <b>Preview</b>
+
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Order ID</th>
+                        <th>Customer ID</th>
+                        <th>Freight</th>
+                        <th>Ship Country</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var order in orders)
+                    {
+                        <tr>
+                            <td>@order.OrderID</td>
+                            <td>@order.CustomerID</td>
+                            <td>@order.Freight</td>
+                            <td>@order.ShipCountry</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+
+    </DialogContent>
+    <DialogActions>
+
+
+
+        <MudButton Class="btn btn-primary btn-lg btn-theme" OnClick="InsertData" Variant="Variant.Filled" Color="Color.Dark">
+     
+    
+                <MudText><b style="color:white !important">Guardar</b>  </MudText>
+   
+</MudButton>
+ 
+   
+    </DialogActions>
+</MudDialog>
+
+
+ 
+
+
+ 
+
+ 
+
+@code {
+
+
+        [CascadingParameter] MudDialogInstance MudDialog2 { get; set; }
+ 
+    [Parameter] public string tipoupload { get; set; }
+
+    private HttpClient httpClient;
+
+    protected override async void OnInitialized()
+    {
+
+        httpClient = new HttpClient();
+        httpClient.BaseAddress = new Uri(NavigationManager.BaseUri);
+
+     
+    }
+
+    public bool EsCorrecto { get; set; } = false;
+    private async Task InsertData()
+    {
+
+        var response = await httpClient.PostAsJsonAsync("api/Order/bulkinsert", orders);
+
+        if (response.IsSuccessStatusCode)
+        {
+            await Swal.FireAsync("Info", "Se Cargo Correctamente", SweetAlertIcon.Success);
+            MudDialog2.Close(DialogResult.Ok(EsCorrecto));
+        }
+        else
+        {
+            await Swal.FireAsync("Error", "Error al Cargar", SweetAlertIcon.Error);
+        }
+    }
+
+
+    private List<OrderData> orders;
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        var ms = new MemoryStream();
+        await file.OpenReadStream().CopyToAsync(ms);
+        ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+        using (var package = new ExcelPackage(ms))
+        {
+            var worksheet = package.Workbook.Worksheets.FirstOrDefault();
+            if (worksheet != null)
+            {
+                orders = new List<OrderData>();
+
+                for (int row = worksheet.Dimension.Start.Row + 1; row <= worksheet.Dimension.End.Row; row++)
+                {
+                    var order = new OrderData
+                        {
+                            OrderID = int.Parse(worksheet.Cells[row, 1].Value.ToString()),
+                            CustomerID = worksheet.Cells[row, 2].Value.ToString(),
+                            ShipCountry = worksheet.Cells[row, 4].Value.ToString()
+                        };
+
+                    var freightString = worksheet.Cells[row, 3].Value.ToString();
+                    var cleanFreightString = freightString.Replace("$", "").Replace(".", ",");
+                    decimal freight;
+                    if (decimal.TryParse(cleanFreightString, NumberStyles.Number, CultureInfo.GetCultureInfo("es-ES"), out freight))
+                    {
+                        order.Freight = freight;
+                    }
+                    else
+                    {
+                  
+                        order.Freight = 0;
+                    }
+
+                    orders.Add(order);
+                }
+            }
+        }
+    }
+
+
+
+    public class OrderData
+    {
+        public int OrderID { get; set; }
+        public string? CustomerID { get; set; }
+        public decimal Freight { get; set; }
+        public string? ShipCountry { get; set; }
+    }
+}

@@ -1,0 +1,355 @@
+﻿@inherits LayoutComponentBase
+ 
+@using MudBlazor
+@using OfficeOpenXml
+@using System.IO
+@using System.Globalization;
+@inject NavigationManager NavigationManager
+@using CurrieTechnologies.Razor.SweetAlert2
+ 
+@inject SweetAlertService Swal;
+
+<MudThemeProvider/>
+<MudDialogProvider/>
+<MudSnackbarProvider/>
+
+
+<MudLayout>
+ 
+ 
+  
+    <MudMainContent>
+       
+      
+
+        <MudContainer Class="mt-4" MaxWidth="MaxWidth.False">
+
+            <div class="MenuJL">
+                <div class="menu-title">
+                    <span>Excel  </span>
+                </div>
+
+                <MudTooltip Text="Subir Documento">
+                    <MudFab Color="Color.Dark" StartIcon="@Icons.Filled.Upload" Class="ml-8" @onclick="() => UploadArchivo()" DisableElevation="true" Size="Size.Small" />
+
+                </MudTooltip>
+            </div>
+
+
+
+            <MudGrid>
+
+                <MudItem xs="12" sm="12">
+
+
+
+                    @if (ordersData != null)
+                    {
+
+
+                          <MudGrid>
+
+                               <MudItem xs="12" sm="5">
+                                   
+                        <MudTextField Margin="Margin.Dense" @bind-Value="CustomerID" Label="CustomerID" Variant="Variant.Outlined"
+                                  Adornment="Adornment.End"
+                                          AdornmentIcon="@Icons.Material.Filled.Search" OnAdornmentClick="BuscarFIl" />
+                                   </MudItem>
+
+
+                                    <MudItem xs="12" sm="5">
+                                <MudSelect Margin="Margin.Dense" T="string" Label="Ship Country"
+                                       Value="@Fill" ValueChanged="OnValueChanged2"
+                                       Variant="Variant.Outlined">
+                                    <MudSelectItem Value="@Fill">Seleccione un Pais</MudSelectItem>
+                                    
+                                    @foreach (var pais in uniqueShipCountries)
+                                    {
+                                        <MudSelectItem T="string" Value="@pais">@pais</MudSelectItem>
+                                    }
+                                </MudSelect>
+                                   </MudItem>
+
+                            <MudItem xs="12" sm="2">
+
+                                
+  
+
+
+                        <MudButton Class="btn btn-primary btn-lg btn-theme" OnClick="BuscarFIl" Variant="Variant.Filled" Color="Color.Dark">
+
+
+                            <MudText><b style="color:white !important">Buscar</b>  </MudText>
+
+                        </MudButton>
+
+                            </MudItem>
+
+                              </MudGrid>
+
+
+
+
+
+
+                        <MudTable Items="@filteredOrders" Hover="true" Breakpoint="Breakpoint.Xs"
+                              SortLabel="Sort By"
+                              Bordered="false"
+                              Dense="true">
+
+                            <HeaderContent>
+
+
+                                <MudTh Class="Headertabla">   OrderID  </MudTh>
+                                <MudTh Class="Headertabla">   CustomerID  </MudTh>
+                                <MudTh Class="Headertabla">   Freight  </MudTh>
+                                <MudTh Class="Headertabla">   ShipCountry  </MudTh>
+                                <MudTh Class="Headertabla">    </MudTh>
+
+                            </HeaderContent>
+                            <RowTemplate>
+
+                                <MudTd DataLabel="orderID">@context.OrderID</MudTd>
+                                <MudTd DataLabel="customerID">@context.CustomerID</MudTd>
+                                <MudTd DataLabel="freight">@context.Freight</MudTd>
+                                <MudTd DataLabel="ShipCountry">@context.ShipCountry</MudTd>
+
+
+
+                                <MudTd DataLabel="">
+
+
+                                    <MudTooltip Text="Editar">
+                                        <MudFab Color="Color.Warning" Class="ml-8" StartIcon="@Icons.Material.Filled.EditNote"
+                                            @onclick="@(()=>OpcionEditar(@context))"
+                                            DisableElevation="true" Size="Size.Small" />
+
+                                    </MudTooltip>
+
+                                    <MudTooltip Text="Eliminar">
+
+                                        <MudFab Color="Color.Error" Class="ml-8" StartIcon="@Icons.Material.Filled.DeleteForever"
+                                            @onclick="@(()=>OpcionEliminar(@context))" DisableElevation="true" Size="Size.Small" />
+
+
+                                    </MudTooltip>
+
+                                </MudTd>
+                            </RowTemplate>
+
+                        
+                         
+
+                            <PagerContent>
+                                <MudTablePager PageSizeOptions="new int[] { 10, 20 , 50 , 100 , 500}" RowsPerPageString="Cant." />
+
+                            </PagerContent>
+
+                   
+                        </MudTable>
+
+                    }
+
+
+
+
+                </MudItem>
+
+
+            </MudGrid>
+
+
+        
+        </MudContainer>
+
+
+    </MudMainContent>
+</MudLayout>
+
+
+
+<MudMessageBox @ref="mbox" Title="Actualizar" CancelText="Cancel">
+    <MessageContent>
+          <MudStack Spacing="2">
+        OrderID: <b>@DTOGuardar.OrderID</b>
+
+        
+        <MudTextField Label="Customer ID" Margin="Margin.Dense" Variant="Variant.Outlined" @bind-Value="DTOGuardar.CustomerID" />
+        <MudTextField   Label="Freight" Margin="Margin.Dense" Variant="Variant.Outlined" @bind-Value="DTOGuardar.Freight" />
+
+        <MudTextField Label="Ship Country" Margin="Margin.Dense" Variant="Variant.Outlined" @bind-Value="DTOGuardar.ShipCountry" />
+        </MudStack>
+    </MessageContent>
+    <YesButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Dark" StartIcon="@Icons.Material.Filled.Update">Actualizar</MudButton>
+    </YesButton>
+</MudMessageBox>
+
+@code {
+
+    
+    private async Task BuscarFIl()
+    {
+
+         filteredOrders = FilterOrders(CustomerID, Fill);
+        StateHasChanged();
+    }
+    private List<OrderData> filteredOrders;
+
+
+    private List<OrderData> FilterOrders(string customerID, string shipCountry)
+    {
+        if (string.IsNullOrEmpty(customerID) && string.IsNullOrEmpty(shipCountry))
+        {
+            return ordersData;
+        }
+        else if (!string.IsNullOrEmpty(customerID) && !string.IsNullOrEmpty(shipCountry))
+        {
+            return ordersData.Where(o => o.CustomerID.Contains(customerID) && o.ShipCountry == shipCountry).ToList();
+        }
+        else if (!string.IsNullOrEmpty(customerID))
+        {
+            return ordersData.Where(o => o.CustomerID.Contains(customerID)).ToList();
+        }
+        else if (!string.IsNullOrEmpty(shipCountry))
+        {
+            return ordersData.Where(o => o.ShipCountry == shipCountry).ToList();
+        }
+        else
+        {
+            return ordersData;
+        }
+    }
+
+
+    private async Task UploadArchivo()
+    {
+
+        DialogOptions OptionesModal2 = new DialogOptions() { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true, DisableBackdropClick = true };
+        var parameters2 = new DialogParameters { ["tipoupload"] = "" };
+        var dialog = Dialog.Show<Modal>("", parameters2, OptionesModal2);
+        var result = await dialog.Result;
+
+        await ViewData();
+    }
+
+    MudMessageBox mbox { get; set; }
+
+    private OrderData DTOGuardar;
+    private string Fill = "";
+
+    private async Task OnValueChanged2(string value)
+    {
+        Fill = value;
+
+
+    }
+
+    private string CustomerID = "";
+    private async Task OpcionEditar(OrderData lsorde)
+    {
+
+        DTOGuardar = lsorde;
+
+        await mbox.Show();
+
+        var response = await httpClient.PutAsJsonAsync($"api/Order/{lsorde.OrderID}", DTOGuardar);
+
+        if (response.IsSuccessStatusCode)
+        {
+            await Swal.FireAsync("Info", $"Se Actualizo la orden{lsorde.OrderID} Correctamente", SweetAlertIcon.Success);
+            await ViewData();
+        } 
+
+     
+        StateHasChanged();
+    }
+    private async Task OpcionEliminar(OrderData lsorden)
+    {
+        SweetAlertResult result = await Swal.FireAsync(new SweetAlertOptions
+            {
+                Title = "Eliminar",
+                Text = $"¿Desea Eliminar Customer ID {lsorden.CustomerID}?",
+                Icon = SweetAlertIcon.Warning,
+                ShowCancelButton = true,
+                ConfirmButtonColor = "#36c5f0",
+                CancelButtonColor = "#d33",
+                ConfirmButtonText = "SI",
+                CancelButtonText = "NO"
+
+            });
+
+        if (!string.IsNullOrEmpty(result.Value))
+        {
+            //Respuesta SI
+
+
+            var response = await httpClient.DeleteAsync($"api/Order/{lsorden.OrderID}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                       await Swal.FireAsync("Info", $"Se Elimino Customer ID {lsorden.CustomerID} Correctamente", SweetAlertIcon.Success);
+                await ViewData();
+
+              
+            }
+            else
+            {
+                await Swal.FireAsync("Error", "Error al Intentar Eliminar", SweetAlertIcon.Error);
+
+         
+            }
+ 
+
+
+
+        }
+        else if (result.Dismiss == DismissReason.Cancel)
+        {
+            //Respuesta NO
+
+        }
+
+
+
+    }
+  
+    private List<OrderData> ordersData;
+
+    private async Task ViewData()
+    {
+        try
+        {
+            ordersData = await httpClient.GetFromJsonAsync<List<OrderData>>("api/Order");
+            uniqueShipCountries = ordersData.Select(o => o.ShipCountry).Distinct().ToList();
+            filteredOrders = ordersData;
+
+            StateHasChanged(); 
+        }
+        catch (Exception ex)
+        {
+           
+        }
+    }
+
+    private HttpClient httpClient;
+    private List<string> uniqueShipCountries;
+
+    protected override async void OnInitialized()
+    {
+
+        httpClient = new HttpClient();
+        httpClient.BaseAddress = new Uri(NavigationManager.BaseUri);
+
+        await ViewData();
+    }
+ 
+
+    public class OrderData
+    {
+        public int OrderID { get; set; }
+        public string? CustomerID { get; set; } 
+        public decimal Freight { get; set; }
+        public string? ShipCountry { get; set; }
+    }
+}
